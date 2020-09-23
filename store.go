@@ -20,7 +20,7 @@ type Config struct {
 
 // ConfigDefault is the default config
 var ConfigDefault = Config{
-	Provider: memory.New(), // TODO
+	Provider: memory.New(), // WOOOHOO
 }
 
 // New creates a new middleware handler

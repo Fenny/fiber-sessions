@@ -9,42 +9,37 @@ import "sync"
 // }
 
 type Provider struct {
-	db map[string]interface{}
+	db map[string][]byte
 	mu sync.Mutex
-}
-
-type item struct {
-	data []byte
 }
 
 // New returns a new memory provider configured
 func New() *Provider {
 	return &Provider{
-		db: new(map[string]interface{}),
+		db: make(map[string][]byte),
 	}
 }
 
 func (p *Provider) Get(key string) ([]byte, error) {
-	mu.Lock()
-	defer mu.Unlock()
+	// p.mu.Lock()
+	// defer p.mu.Unlock()
 	val, exist := p.db[key]
 	if !exist {
 		return nil, nil
 	}
-	item := val.(*item)
-	return item.data, nil
+	return val, nil
 }
 
-func (p *Provider) Set(key string, val interface{}) error {
-	mu.Lock()
-	defer mu.Unlock()
+func (p *Provider) Set(key string, val []byte) error {
+	// p.mu.Lock()
+	// defer p.mu.Unlock()
 	p.db[key] = val
 	return nil
 }
 
 func (p *Provider) Delete(key string) error {
-	mu.Lock()
-	defer mu.Unlock()
+	// p.mu.Lock()
+	// defer p.mu.Unlock()
 	delete(p.db, key)
 	return nil
 }

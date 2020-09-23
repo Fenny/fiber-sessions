@@ -2,8 +2,8 @@ package session
 
 // Provider interface implemented by providers
 type Provider interface {
-	Get(key string) (interface{}, error)
-	Set(key string, val interface{}) error
+	Get(key string) ([]byte, error)
+	Set(key string, val []byte) error
 	Delete(key string) error
 }
 
