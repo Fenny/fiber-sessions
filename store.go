@@ -1,26 +1,36 @@
 package session
 
 import (
-	"session/provider/memory"
+	"github.com/hi019/fiber-sessions/provider/memory"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/utils"
 )
 
+// Storage interface implemented by providers
+type Storage interface {
+	// Set session value, call save function to take effect
+	Set(key string, value interface{})
+	// Get session value
+	Get(key string) (interface{}, bool)
+	// Delete session value, call save function to take effect
+	Delete(key string)
+}
+
 // Store represents a session store
 type Store struct {
-	provider Provider
+	store Storage
 }
 
 // Config defines the config for middleware.
 type Config struct {
 	// Storage interface implemented by storage providers
-	Provider Provider
+	Storage Storage
 }
 
 // ConfigDefault is the default config
 var ConfigDefault = Config{
-	Provider: memory.New(), // WOOOHOO
+	Storage: memory.New(), // WOOOHOO
 }
 
 // New creates a new middleware handler
@@ -32,45 +42,48 @@ func New(config ...Config) *Store {
 	if len(config) > 0 {
 		cfg = config[0]
 
-		if cfg.Provider == nil {
-			cfg.Provider = ConfigDefault.Provider
+		if cfg.Storage == nil {
+			cfg.Storage = ConfigDefault.Storage
 		}
 	}
 
-	return &Store{
-		provider: cfg.Provider,
-	}
+	return &Store{cfg.Storage}
 }
 
 // Get ...
 func (s *Store) Get(c *fiber.Ctx) *Session {
-	newUser := false
+	var new bool
 
+	// Get ID from cookie
 	id := c.Cookies("session_id")
+
+	// If no ID exist, create new one
 	if len(id) == 0 {
 		id = utils.UUID()
-		newUser = true
+		new = true
 	}
 
-	// base sess
+	// Create session object
 	sess := &Session{
-		store:   s,
-		id:      id,
-		newUser: newUser,
+		ctx:   c,
+		store: s,
+		new:   new,
+		id:    id,
 	}
 
-	// create data or new data?
-	if !newUser {
-		s.provider.Get(id)
-		data, err := sess.store.provider.Get(id)
-		if err != nil {
-			panic(err)
-		}
-		// sess.data = nil, data = dictpool from db
-		if err := decode(sess.data, data); err != nil {
-			panic(err)
+	// Fetch existing data
+	if !new {
+		raw, found := s.store.Get(id)
+		// Set data
+		if found {
+			sess.values = raw.(map[string]interface{})
+			return sess
 		}
 	}
 
+	// Create new storage TODO: Pool
+	sess.values = make(map[string]interface{})
+
+	// Return session object
 	return sess
 }

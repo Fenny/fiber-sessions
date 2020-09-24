@@ -1,13 +1,24 @@
 package session
 
-import "github.com/savsgio/dictpool"
+import (
+	"sync"
+
+	"github.com/gofiber/fiber/v2"
+)
 
 // Session represents a single session
 type Session struct {
-	store   *Store
-	data    *dictpool.Dict
-	id      string
-	newUser bool
+	sync.RWMutex
+	ctx    *fiber.Ctx
+	store  *Store
+	values map[string]interface{}
+	id     string
+	new    bool
+}
+
+// New ...
+func (s *Session) New() bool {
+	return s.new
 }
 
 // ID ...
@@ -17,58 +28,43 @@ func (s *Session) ID() string {
 
 // Set ...
 func (s *Session) Set(key string, val interface{}) {
-	s.data.Set(key, val)
+	s.Lock()
+	s.values[key] = val
+	s.Unlock()
 }
 
 // Get ...
-func (s *Session) Get(key string) interface{} {
-	return s.data.Get(key)
+func (s *Session) Get(key string) (interface{}, bool) {
+	s.RLock()
+	val, ok := s.values[key]
+	s.RUnlock()
+	return val, ok
 }
 
 // Delete ...
 func (s *Session) Delete(key string) {
-	s.data.Del(key)
+	s.RLock()
+	_, ok := s.values[key]
+	s.RUnlock()
+	if ok {
+		s.Lock()
+		delete(s.values, key)
+		s.Unlock()
+	}
 }
 
 // Destroy ...
 func (s *Session) Destroy() {
-	s.data.Reset()
+	s.Lock()
+	s.values = make(map[string]interface{})
+	s.Unlock()
 }
 
 // Save ...
 func (s *Session) Save() error {
-	raw, err := encode(*s.data)
-	if err != nil {
-		return err
-	}
-	return s.store.provider.Set(s.id, raw)
-}
-
-// IsNew ...
-func (s *Session) IsNew() bool {
-	return s.newUser
-}
-
-// Thanks to fasthttp/session for the below methods :D
-
-// convert dictpool.Dict to []byte
-func encode(src dictpool.Dict) ([]byte, error) {
-	if len(src.D) == 0 {
-		return nil, nil
-	}
-	dst, err := src.MarshalMsg(nil)
-	if err != nil {
-		return nil, err
-	}
-	return dst, nil
-}
-
-// convert []byte to dictpool.Dict
-func decode(dst *dictpool.Dict, src []byte) error {
-	dst.Reset()
-	if len(src) == 0 {
-		return nil
-	}
-	_, err := dst.UnmarshalMsg(src)
-	return err
+	s.RLock()
+	values := s.values
+	s.RUnlock()
+	s.store.store.Set(s.id, values)
+	return nil
 }
